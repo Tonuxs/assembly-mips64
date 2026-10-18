@@ -13,64 +13,68 @@ if errorlevel 1 (
     goto :fim
 )
 
-rem --- primeira vez: criar o repositorio (so no modo manual) ---
-if not exist ".git" (
-    if "%AUTO%"=="1" (
-        echo [%date% %time%] Repositorio ainda nao configurado. Corre o publicar.bat a mao uma vez.
-        goto :fim
-    )
-    echo Primeira execucao: a configurar o repositorio...
-    git init -b main
+rem --- garantir repositorio local ---
+if not exist ".git" git init -b main >nul
+git branch -M main >nul 2>nul
 
-    git config --global user.name >nul 2>nul
-    if errorlevel 1 (
-        set /p GNAME="O teu nome para os commits: "
-        set /p GMAIL="O teu email do GitHub: "
-        git config --global user.name "!GNAME!"
-        git config --global user.email "!GMAIL!"
-    )
-
-    where gh >nul 2>nul
-    if not errorlevel 1 (
-        gh auth status >nul 2>nul || gh auth login
-        git add -A
-        git commit -m "Exercicios de Assembly MIPS64 (Sistemas 1)"
-        gh repo create %REPO% --public --source . --remote origin --push
-        echo.
-        echo Feito! Repositorio criado e enviado.
-        goto :fim
-    )
-
-    echo.
-    echo Cria primeiro um repo VAZIO chamado %REPO% em https://github.com/new
-    start https://github.com/new
-    set /p GHUSER="O teu username do GitHub: "
-    git remote add origin https://github.com/!GHUSER!/%REPO%.git
+git config --global user.name >nul 2>nul
+if errorlevel 1 (
+    if "%AUTO%"=="1" goto :semconfig
+    set /p GNAME="O teu nome para os commits: "
+    set /p GMAIL="O teu email do GitHub: "
+    git config --global user.name "!GNAME!"
+    git config --global user.email "!GMAIL!"
 )
 
-rem --- commit + push ---
+rem --- garantir ligacao ao GitHub (origin) ---
+git remote get-url origin >nul 2>nul
+if errorlevel 1 (
+    if "%AUTO%"=="1" goto :semconfig
+    echo.
+    echo Ainda nao esta ligado ao GitHub.
+    echo O repo %REPO% tem de existir em github.com ^(se nao existir, cria em https://github.com/new^)
+    set "GHUSER="
+    set /p GHUSER="O teu username do GitHub: "
+    if "!GHUSER!"=="" goto :fim
+    git remote add origin https://github.com/!GHUSER!/%REPO%.git
+    echo Ligado a https://github.com/!GHUSER!/%REPO%
+)
+
+rem --- commit (se houver alteracoes) ---
 git add -A
 git diff --cached --quiet
-if not errorlevel 1 (
-    echo Nada de novo para enviar.
-    goto :fim
+if errorlevel 1 (
+    git status --short
+    set "MSG="
+    if "%AUTO%"=="0" (
+        echo.
+        set /p MSG="Mensagem do commit (Enter = data/hora): "
+    )
+    if "!MSG!"=="" set "MSG=Atualizacao %date% %time:~0,5%"
+    git commit -m "!MSG!"
 )
 
-git status --short
-set "MSG="
-if "%AUTO%"=="0" (
-    echo.
-    set /p MSG="Mensagem do commit (Enter = data/hora): "
-)
-if "!MSG!"=="" set "MSG=Atualizacao %date% %time:~0,5%"
-
-git commit -m "!MSG!"
+rem --- push (tambem envia commits antigos que ficaram por enviar) ---
 git push -u origin main
 if errorlevel 1 (
-    echo [ERRO] O push falhou. Verifica o login no GitHub e o nome do repo.
+    echo.
+    echo Push recusado: a tentar juntar com o que ja esta no GitHub ^(ex: README criado no site^)...
+    git pull origin main --allow-unrelated-histories --no-rebase --no-edit -X ours
+    git push -u origin main
+)
+if errorlevel 1 (
+    echo.
+    echo [ERRO] O push falhou. Confirma que o repo existe e o username:
+    git remote get-url origin
+    echo Para corrigir o username: git remote set-url origin https://github.com/USERNAME/%REPO%.git
 ) else (
+    echo.
     echo Enviado para o GitHub!
 )
+goto :fim
+
+:semconfig
+echo [%date% %time%] Falta configurar. Corre o publicar.bat a mao uma vez.
 
 :fim
 if "%AUTO%"=="0" pause
