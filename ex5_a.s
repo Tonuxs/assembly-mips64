@@ -13,7 +13,7 @@ MSG: .asciiz "hello world"
 	
 	daddi r3, r0, 4 ; coloca em r3 o codigo de controlo para imprimir strings 
 	
-	sd r3, (r1) ; chamar o controlo, mostra a mensagme que esta em r2
+	sd r3, (r1) ; chamar o controlo, mostra a mensagme que esta em r1
 	
 	
 	
